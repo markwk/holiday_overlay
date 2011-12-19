@@ -1,0 +1,5 @@
+name = Holiday Overlay
+description = Overlays your website on select holidays with a customizable message.
+core = 7.x
+
+files[] = holiday_overlay.module
