@@ -40,19 +40,18 @@ function holiday_overlay_menu() {
  * Implements hook_page_alter().
  */
 function holiday_overlay_page_alter(&$page) {
-  // If overlay should be shown, add overlay content, js, and css.
-  if (holiday_overlay_is_active()) {
-    // Add message to JS settings for overlay.
-    $message = variable_get('holiday_overlay_message', array('value' => _holiday_overlay_defaults('message'), 'format' => 1));
-    $message = check_markup($message['value'], $message['format']);
-    drupal_add_js(array('holidayOverlayMessage' => $message), 'setting');
-
-    // Add overlay JS and CSS.
-    drupal_add_js(drupal_get_path('module', 'holiday_overlay') . '/js/holiday_overlay.overlay.js', 'file');
-    drupal_add_css(drupal_get_path('module', 'holiday_overlay') . '/css/holiday_overlay.styles.css', array('group' => CSS_DEFAULT, 'every_page' => TRUE));
-  }
+	if (!variable_get('holiday_overlay_context', 0)) {
+      holiday_overlay_add_js();
+    }
+    else {
+      if ($plugin = context_get_plugin('reaction', 'holiday_overlay_add')) {
+        if ($plugin->execute()) {
+          holiday_overlay_add_js();
+        }
+      }
+    }
 }
-
+    
 /**
  * Function to determine whether the holiday overlay should be enabled.
  */
@@ -101,7 +100,14 @@ function holiday_overlay_settings_page() {
     '#default_value' => $message['value'],
     '#format' => $message['format'],
   );
-
+  if (module_exists('context')) {
+    $form['holiday_overlay_context'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Use Context to choose when Holiday Overlay is added to the page.'),
+      '#description' => t('The Holiday Overlay will be included on all pages of your site by default. You can use <a href="!context_url">Context module</a> to fine tune when and where it will be displayed.', array('!context_url' => url('admin/structure/context'))),
+      '#default_value' => variable_get('holiday_overlay_context', 0),
+    );
+  }
   return system_settings_form($form);
 }
 
@@ -123,4 +129,52 @@ function _holiday_overlay_defaults($option) {
       'day' => 25,
     );
   }
+}
+
+/**
+ * Builds and inserts the correct Holiday Overlay Javascript into the page.
+ */
+function holiday_overlay_add_js() {
+    // Add message to JS settings for overlay.
+    if (holiday_overlay_is_active()) {
+    $message = variable_get('holiday_overlay_message', array('value' => _holiday_overlay_defaults('message'), 'format' => 1));
+    $message = check_markup($message['value'], $message['format']);
+    drupal_add_js(array('holidayOverlayMessage' => $message), 'setting');
+
+    // Add overlay JS and CSS.
+    drupal_add_js(drupal_get_path('module', 'holiday_overlay') . '/js/holiday_overlay.overlay.js', 'file');
+    drupal_add_css(drupal_get_path('module', 'holiday_overlay') . '/css/holiday_overlay.styles.css', array('group' => CSS_DEFAULT, 'every_page' => TRUE));
+   }
+}
+
+/**
+ * Implements hook_context_registry().
+ */
+function holiday_overlay_context_registry() {
+  return array(
+    'reactions' => array(
+      'holiday_overlay_add' => array(
+        'title' => t('Holiday Overlay'),
+        'plugin' => 'holiday_overlay_context_reaction_add',
+        'description' => t('Add Holiday Overlay to the page'),
+      ),
+    ),
+  );
+}
+
+/**
+ * CTools plugin API hook for Context.
+ */
+function holiday_overlay_context_plugins() {
+  $plugins = array();
+  $plugins['holiday_overlay_context_reaction_add'] = array(
+    'handler' => array(
+      'path' => drupal_get_path('module', 'holiday_overlay') . '/plugins',
+      'file' => 'holiday_overlay_context_reaction_add.inc',
+      'class' => 'holiday_overlay_context_reaction_add',
+      'parent' => 'context_reaction',
+    ),
+  );
+
+  return $plugins;
 }
